@@ -18,6 +18,7 @@ class HomeController extends Controller
         $schedules = Schedule::all();
         $schedules = $schedules->where('group_id', Auth::user()->group_id);
 
+        // потом по-этому массиву blade шаблон будет определять день недели
         $days = [
             'Воскресенье', 'Понедельник', 'Вторник', 'Среда',
             'Четверг', 'Пятница', 'Суббота'
@@ -35,7 +36,7 @@ class HomeController extends Controller
         // return Estimation::find(1)->user->name . ' по ' . Estimation::find(1)->subject->title . ' получил ' . Estimation::find(1)->estimation;
     }
 
-    public function profile()
+    public function profile() : View
     {
         return view('forAuthUsers.profile');
     }

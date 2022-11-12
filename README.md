@@ -1,66 +1,109 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+<h1 align="center">Колледжное расписание/Collage schedule</h1>
 
-<p align="center">
-<a href="https://travis-ci.org/laravel/framework"><img src="https://travis-ci.org/laravel/framework.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Что вам нужно для нормальной загрузки проекта
+1. Клонируете этот репозиторий себе на локалку
+2. Устанавливаете все зависимости node js и composer
+   1. `npm i`
+   2. `composer install`
+3. Открываете phpmyadmin или консоль mysql и создаете бд `college_dairy`
+4. После создания заходите в файлы проекта и в консоли вводите `php artisan migrate:fresh`
+5. Далее вы запускаеет сидеры, для создания начальной структуры `php artisan db:seed`. Напоминаю, что данные вы можете сменить в `./database/factories/`
 
-## About Laravel
+### Также обратите внимание, что вам нужен `php8.*`, потому что сам проект написан на laravel 9.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+<br/>
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Работа с проектом и документация по коду
+### Пройдемся чутка по файлам:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+`./routes/web.php` - тут находится основной роутинг на сайте. Я решил подразделить его на три части.
+1. Для авторизованных пользователей
+2. Для не авторизованных пользователей, то есть например страница `login`(на эту страницу нельзя авторизованным пользователям)
+3. Для всех пользователей
 
-## Learning Laravel
+```php
+<?php
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\HomeController;
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+Route::get('/', function () {
+    return view('welcome');
+})->name('welcome');
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains over 2000 video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+// Аутентификация и регистрация пользователя
+Route::middleware('guest')->group(function () {
+    Route::get('login', [AuthController::class, 'login'])->name('login');
+    Route::post('logining', [AuthController::class, 'logining'])->name('logining');
+    Route::get('register', [AuthController::class, 'register'])->name('register');
+    Route::post('registering', [AuthController::class, 'registering'])->name('registering');
+});
 
-## Laravel Sponsors
+// Страницы только для авторизованных пользователей
+Route::middleware('auth')->group(function () {
+    Route::controller(AuthController::class)->group(function () {
+        Route::get('logout', 'logout')->name('logout');
+    });
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the Laravel [Patreon page](https://patreon.com/taylorotwell).
+    Route::controller(HomeController::class)->group(function () {
+        Route::get('dashboard', 'dashboard')->name('dashboard');
+        Route::get('profile', 'profile')->name('profile');
+    });
+});
+```
 
-### Premium Partners
+Так, еще отдельно хотел бы рассказать про `./app/Http/Controllers/HomeController.php`. Тут находится обработка роутов, которые требуют авторизации. В этом контроллере все роуты, кроме `test()`, требуют авторизации. И то роут `test()` нужен мне только для тестирования работы разных фишек, вскоре он будет удален.
+```php
+<?php
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Cubet Techno Labs](https://cubettech.com)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[Many](https://www.many.co.uk)**
-- **[Webdock, Fast VPS Hosting](https://www.webdock.io/en)**
-- **[DevSquad](https://devsquad.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[OP.GG](https://op.gg)**
-- **[WebReinvent](https://webreinvent.com/?utm_source=laravel&utm_medium=github&utm_campaign=patreon-sponsors)**
-- **[Lendio](https://lendio.com)**
+namespace App\Http\Controllers;
 
-## Contributing
+use App\Models\Estimation;
+use App\Models\Schedule;
+use App\Models\Subject;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+class HomeController extends Controller
+{
+    public function dashboard() : View
+    {
+        $schedules = Schedule::all();
+        $schedules = $schedules->where('group_id', Auth::user()->group_id);
 
-## Code of Conduct
+        // потом по-этому массиву blade шаблон будет определять день недели
+        $days = [
+            'Воскресенье', 'Понедельник', 'Вторник', 'Среда',
+            'Четверг', 'Пятница', 'Суббота'
+        ];
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+        return view('forAuthUsers.dashboard', [
+            'schedules' => $schedules,
+            'days' => $days
+        ]);
+    }
 
-## Security Vulnerabilities
+    public function test()
+    {
+        // return Subject::find(1)->user;
+        // return Estimation::find(1)->user->name . ' по ' . Estimation::find(1)->subject->title . ' получил ' . Estimation::find(1)->estimation;
+    }
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+    public function profile() : View
+    {
+        return view('forAuthUsers.profile');
+    }
 
-## License
+}
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Для особо хитрожопых я хотел бы сказать, что ключ сайта, который находится в `.env` уже недействителен(
+
+## Кому интересно следить за ходом проекта, переходите на мою страницу в вк
+[![Vk](https://img.shields.io/badge/Vkontakte-090909?style=for-the-badge&logo=Vk&logoColor=4F7D83)](https://vk.com/evollt)
+
+### На этой же странице будет запощен sql файл с базой данных.
+Вот ссылочка на <a href="https://vk.com/evollt?w=wall329056111_365%2Fall"><i>пост</i></a>
